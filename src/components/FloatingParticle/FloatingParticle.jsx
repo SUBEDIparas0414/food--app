@@ -1,6 +1,6 @@
 import React from 'react'
 
-const FloatingParticle = ({count =40}) => {
+const FloatingParticle = ({count = 40}) => {
    const particle =Array.from ({length:count},() => ({
 
     top:Math.random()*100,

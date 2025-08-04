@@ -28,11 +28,11 @@ const SpecialOffer = () => {
           </p>
         </div>
 
-        {/* product card */}
+        {/* product cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
           {(showAll ? initialData : initialData.slice(0, 4)).map((item, index) => {
             const cartItem = cartItems.find((ci) => ci.id === item.id);
-            const quantity = cartItem ? cartItem.quantity : 0;
+            const quantity = cartItem?.quantity || 0;
 
             return (
               <div
@@ -63,14 +63,14 @@ const SpecialOffer = () => {
                       {item.price}
                     </span>
 
-                    {cartItem ? (
+                    {quantity > 0 ? (
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => {
+                          onClick={() =>
                             quantity > 1
                               ? updateQuantity(item.id, quantity - 1)
-                              : removeFromCart(item.id);
-                          }}
+                              : removeFromCart(item.id)
+                          }
                           className="w-8 h-8 rounded-full bg-amber-800/40 hover:bg-amber-700/60 text-white flex items-center justify-center transition"
                         >
                           <HiMinus />
@@ -94,7 +94,7 @@ const SpecialOffer = () => {
                             {
                               ...item,
                               name: item.title,
-                              price: parseFloat(item.price.replace("Rs", "")),
+                              price: parseFloat(item.price.replace("₹", "")),
                             },
                             1
                           )
@@ -118,7 +118,7 @@ const SpecialOffer = () => {
           })}
         </div>
 
-        {/* Show More / Fire Button */}
+        {/* Show More / Show Less Button */}
         <div className="mt-12 flex justify-center">
           <button
             onClick={() => setShowAll(!showAll)}
