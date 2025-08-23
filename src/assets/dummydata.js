@@ -7,9 +7,9 @@ import { GiChefToque, GiFoodTruck } from 'react-icons/gi';
 import IA1 from './IA1.png';
 import IA2 from './IA2.png';
 import IA3 from './IA3.png';
-import IA4 from './IA4.png';
-import IA5 from './IA5.png';
-import IA6 from './IA6.png';
+import IA4 from './IA4.jpg';
+import IA5 from './IA5.jpg';
+import IA6 from './IA6.jpg';
 
 import Kebab from "./Kebab.png";
 import ChickenTikka from "./ChickenTikka.png";
@@ -81,7 +81,7 @@ export const stats = [
 
 export const teamMembers = [
     {
-        name: "Marco Yansen",
+        name: "Nilesh Karn",
         role: "Executive Chef",
         img: IA4,
         bio: "3 Michelin stars | Italian cuisine specialist",
@@ -94,7 +94,7 @@ export const teamMembers = [
         },
     },
     {
-        name: "Amit Singh",
+        name: "Paras Subedi",
         role: "Pastry Chef",
         img: IA5,
         bio: "World Baking Champion | French desserts expert",
@@ -107,7 +107,7 @@ export const teamMembers = [
         },
     },
     {
-        name: "Akash Trivedi",
+        name: "Shishir Gautam",
         role: "Sushi Chef",
         img: IA6,
         bio: "5th generation sushi chef | Traditional techniques",
