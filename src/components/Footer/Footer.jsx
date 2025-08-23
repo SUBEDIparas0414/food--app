@@ -22,7 +22,11 @@ const Footer = () => {
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-10">
         {/* left column */}
         <div>
-          <h2 className="text-3xl font-bold text-white mb-3">FoodTrio</h2>
+          <h2 className="text-3xl font-bold mb-3">
+  <span className="text-yellow-400">Trio</span>
+  <span className="text-orange-400">Order</span>
+</h2>
+
           <p className="text-gray-400 italic mb-6">
             “Bringing Flavor to Your Doorstep.”
           </p>
@@ -73,7 +77,7 @@ const Footer = () => {
         {/* right column */}
         <div>
           <h3 className="text-xl font-semibold text-white mb-4">
-            Social Connect
+            Social Connect Of TrioTrick
           </h3>
           <div className="flex flex-wrap gap-4">
             {socialIcons.map(({ icon: Icon, link, color, label }, idx) => (
@@ -95,7 +99,7 @@ const Footer = () => {
 
       {/* bottom section */}
       <div className="border-t border-gray-700 mt-10 pt-6 text-center text-sm text-gray-400 space-y-2">
-        <p>&copy; 2025 FoodTrio. All Rights Reserved.</p>
+        <p>&copy; 2025 TrioTrick. All Rights Reserved.</p>
         <p className="text-xs text-gray-500">
           Built by : Paras Subedi • Nilesh Karn • Shishir Gautam
         </p>
