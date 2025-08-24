@@ -7,7 +7,7 @@ import Menu from "./pages/Menu/Menu";
 import Cart from "./pages/Cart/Cart";
 import Login from "./components/Login/Login";
 import SignUP from "./components/SignUp/SignUP";
-
+import PrivateRoute from "./components/PrivateRoute/PrivateRoute";
 
 const App = () => {
   return (
@@ -17,10 +17,17 @@ const App = () => {
       <Route path="/about" element={<AboutPage />} />
 
       <Route path="/menu" element={<Menu />} />
-      <Route path="/cart" element={<Cart />} />
+
       <Route path="/login" element={<Home />} />
-      <Route path="/signup" element={<SignUP/>}/>
-      
+      <Route path="/signup" element={<SignUP />} />
+      <Route
+        path="/cart"
+        element={
+          <PrivateRoute>
+            <Cart />
+          </PrivateRoute>
+        }
+      />
     </Routes>
   );
 };
