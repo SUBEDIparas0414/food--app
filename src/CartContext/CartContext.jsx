@@ -1,36 +1,82 @@
-import React, { createContext, useCallback, useContext, useEffect, useReducer } from 'react';
-import axios from 'axios';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from "react";
+import axios from "axios";
 
-// 1. Create Context
-const CartContext = createContext();
+const API_BASE = "http://localhost:4000";
 
-// Reducer handling cart actions like add, remove, update, and quantity
+// --- Context ---
+const CartContext = createContext({
+  cartItems: [],
+  addToCart: () => {},
+  removeFromCart: () => {},
+  updateQuantity: () => {},
+  clearCart: () => {},
+  totalItems: 0,
+  totalAmount: 0,
+});
+
+// --- Helpers ---
+const toNumber = (v, d = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : d;
+};
+
+const normalizeArray = (arr) =>
+  (Array.isArray(arr) ? arr : []).map((ci) => ({
+    _id: ci._id ?? ci.id,                 // cart-line id
+    item: ci.item ?? ci.product ?? {},    // item object
+    quantity: toNumber(ci.quantity ?? 1),
+  })).filter((ci) => ci.item && ci.item._id);
+
+// Accepts many shapes: array, {items:[...]}, {cart:[...]}, {data:[...]}
+const normalizeCartPayload = (payload) => {
+  if (Array.isArray(payload)) return normalizeArray(payload);
+  if (payload?.items) return normalizeArray(payload.items);
+  if (payload?.cart) return normalizeArray(payload.cart);
+  if (payload?.data) return normalizeArray(payload.data);
+  // single cart item case
+  if (payload?._id || payload?.item || payload?.product) return normalizeArray([payload]);
+  return [];
+};
+
+// --- Reducer ---
 const cartReducer = (state, action) => {
   switch (action.type) {
-    case 'HYDRATE_CART':
-      return action.payload;
+    case "HYDRATE_CART": {
+      return normalizeCartPayload(action.payload);
+    }
 
-    case 'ADD_ITEM': {
+    case "ADD_ITEM": {
+      // payload must end as {_id?: lineId, item, quantity}
       const { _id, item, quantity } = action.payload;
-      const exists = state.find(ci => ci._id === _id);
-      if (exists) {
-        return state.map(ci =>
-          ci._id === _id ? { ...ci, quantity: ci.quantity + quantity } : ci
-        );
+      const itemId = item?._id;
+
+      // merge by item._id (prevents duplicates even if server returns a new lineId)
+      const idx = state.findIndex((ci) => ci.item?._id === itemId);
+      if (idx >= 0) {
+        const existing = state[idx];
+        const updated = {
+          ...existing,
+          _id: _id || existing._id, // prefer server line id if present
+          quantity: toNumber(existing.quantity) + toNumber(quantity, 1),
+        };
+        return [...state.slice(0, idx), updated, ...state.slice(idx + 1)];
       }
-      return [...state, { _id, item, quantity }];
+      return [...state, { _id, item, quantity: toNumber(quantity, 1) }];
     }
 
-    case 'REMOVE_ITEM': {
-      return state.filter(ci => ci._id !== action.payload);
+    case "UPDATE_ITEM": {
+      // accept either {_id, quantity} or {lineId, quantity}
+      const lineId = action.payload._id ?? action.payload.lineId;
+      const nextQty = toNumber(action.payload.quantity, 1);
+      return state.map((ci) => (ci._id === lineId ? { ...ci, quantity: nextQty } : ci));
     }
 
-    case 'UPDATE_ITEM': {
-      const { _id, quantity } = action.payload;
-      return state.map(ci => (ci._id === _id ? { ...ci, quantity } : ci));
+    case "REMOVE_ITEM": {
+      const lineId = action.payload;
+      return state.filter((ci) => ci._id !== lineId);
     }
 
-    case 'CLEAR_CART':
+    case "CLEAR_CART":
       return [];
 
     default:
@@ -38,110 +84,164 @@ const cartReducer = (state, action) => {
   }
 };
 
-// Initialize cart from localStorage
+// --- Initializer (safe for SSR) ---
 const initializer = () => {
   try {
-    return JSON.parse(localStorage.getItem('cart') || '[]');
+    if (typeof window === "undefined") return [];
+    const raw = localStorage.getItem("cart");
+    return normalizeArray(JSON.parse(raw || "[]"));
   } catch {
     return [];
   }
 };
 
-// 2. Provider Component
+// --- Provider ---
 export const CartProvider = ({ children }) => {
   const [cartItems, dispatch] = useReducer(cartReducer, [], initializer);
 
-  // Persist cart state to localStorage
+  // Persist to localStorage
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cartItems));
+    try {
+      localStorage.setItem("cart", JSON.stringify(cartItems));
+    } catch {}
   }, [cartItems]);
 
-  // Hydrate from server API
+  // Initial hydrate from API
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
+    const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
     axios
-      .get('http://localhost:4000/api/cart', {
+      .get(`${API_BASE}/api/cart`, {
         withCredentials: true,
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
-      .then(res => dispatch({ type: 'HYDRATE_CART', payload: res.data }))
-      .catch(err => {
-        if (err.response?.status !== 401) console.error(err);
+      .then((res) => dispatch({ type: "HYDRATE_CART", payload: res.data }))
+      .catch((err) => {
+        // Ignore 401; user just not logged in
+        if (err?.response?.status !== 401) console.error(err);
       });
   }, []);
 
-  // Dispatcher wrapped with callback for performance
-  const addToCart = useCallback(async (item, qty) => {
-    const token = localStorage.getItem('authToken');
-    const res = await axios.post(
-      'http://localhost:4000/api/cart',
-      { itemId: item._id, quantity: qty },
-      {
-        withCredentials: true,
-        headers: { Authorization: `Bearer ${token}` },
+  // Actions (optimistic + resilient to API shapes)
+  const addToCart = useCallback(async (item, qty = 1) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+
+    // optimistic: update immediately using local item info
+    // server should return the authoritative state; we reconcile if an array is returned
+    try {
+      const res = await axios.post(
+        `${API_BASE}/api/cart`,
+        { itemId: item._id, quantity: qty },
+        {
+          withCredentials: true,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+
+      const data = res?.data;
+      const hydrated = normalizeCartPayload(data);
+      if (hydrated.length > 1) {
+        dispatch({ type: "HYDRATE_CART", payload: data });
+      } else if (hydrated.length === 1) {
+        // use server line id if provided, but ensure we keep the item details we already have
+        const serverLine = hydrated[0];
+        dispatch({
+          type: "ADD_ITEM",
+          payload: { _id: serverLine._id, item: item || serverLine.item, quantity: qty },
+        });
+      } else {
+        // fallback: no structured response; still update locally
+        dispatch({ type: "ADD_ITEM", payload: { item, quantity: qty } });
       }
-    );
-    dispatch({ type: 'ADD_ITEM', payload: res.data });
+    } catch (err) {
+      console.error("addToCart failed", err);
+      // if needed, show toast here
+    }
   }, []);
 
-  const removeFromCart = useCallback(async _id => {
-    const token = localStorage.getItem('authToken');
-    await axios.delete(`http://localhost:4000/api/cart/${_id}`, {
-      withCredentials: true,
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    dispatch({ type: 'REMOVE_ITEM', payload: _id });
+  const removeFromCart = useCallback(async (lineId) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+    try {
+      await axios.delete(`${API_BASE}/api/cart/${lineId}`, {
+        withCredentials: true,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      dispatch({ type: "REMOVE_ITEM", payload: lineId });
+    } catch (err) {
+      console.error("removeFromCart failed", err);
+    }
   }, []);
 
-  const updateQuantity = useCallback(async (_id, qty) => {
-    const token = localStorage.getItem('authToken');
-    const res = await axios.put(
-      `http://localhost:4000/api/cart/${_id}`,
-      { quantity: qty },
-      {
-        withCredentials: true,
-        headers: { Authorization: `Bearer ${token}` },
+  const updateQuantity = useCallback(async (lineId, qty) => {
+    const safeQty = Math.max(1, toNumber(qty, 1));
+    const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+    try {
+      const res = await axios.put(
+        `${API_BASE}/api/cart/${lineId}`,
+        { quantity: safeQty },
+        {
+          withCredentials: true,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+
+      const data = res?.data;
+      const hydrated = normalizeCartPayload(data);
+      if (hydrated.length > 0 && (Array.isArray(data) || data?.items || data?.cart)) {
+        dispatch({ type: "HYDRATE_CART", payload: data });
+      } else {
+        dispatch({ type: "UPDATE_ITEM", payload: { _id: lineId, quantity: safeQty } });
       }
-    );
-    dispatch({ type: 'UPDATE_ITEM', payload: res.data });
+    } catch (err) {
+      console.error("updateQuantity failed", err);
+    }
   }, []);
 
   const clearCart = useCallback(async () => {
-    const token = localStorage.getItem('authToken');
-    await axios.post(
-      `http://localhost:4000/api/cart/clear`,
-      {},
-      {
-        withCredentials: true,
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
-    dispatch({ type: 'CLEAR_CART' });
+    const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+    try {
+      await axios.post(
+        `${API_BASE}/api/cart/clear`,
+        {},
+        {
+          withCredentials: true,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+      dispatch({ type: "CLEAR_CART" });
+    } catch (err) {
+      console.error("clearCart failed", err);
+    }
   }, []);
 
-  const totalItems = cartItems.reduce((sum, ci) => sum + ci.quantity, 0);
-  const totalAmount = cartItems.reduce((sum, ci) => {
-    const price = ci?.item?.price ?? 0;
-    const qty = ci?.quantity ?? 0;
-    return sum + price * qty;
-  }, 0);
-
-  return (
-    <CartContext.Provider
-      value={{
-        cartItems,
-        addToCart,
-        removeFromCart,
-        updateQuantity,
-        clearCart,
-        totalItems,
-        totalAmount,
-      }}
-    >
-      {children}
-    </CartContext.Provider>
+  const totalItems = useMemo(
+    () => cartItems.reduce((s, ci) => s + toNumber(ci.quantity, 0), 0),
+    [cartItems]
   );
+
+  const totalAmount = useMemo(
+    () =>
+      cartItems.reduce((s, ci) => {
+        const price = toNumber(ci?.item?.price, 0);
+        return s + price * toNumber(ci?.quantity, 0);
+      }, 0),
+    [cartItems]
+  );
+
+  const value = useMemo(
+    () => ({
+      cartItems,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      totalItems,
+      totalAmount,
+      API_BASE,
+    }),
+    [cartItems, addToCart, removeFromCart, updateQuantity, clearCart, totalItems, totalAmount]
+  );
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 };
 
-// 3. Custom Hook
 export const useCart = () => useContext(CartContext);

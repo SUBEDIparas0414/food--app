@@ -1,20 +1,28 @@
-import React, { useState } from "react";
-import {
-  addButtonBase,
-  addButtonHover,
-  additionalData,
-  cardData,
-  commonTransition,
-} from "../../assets/dummydata";
+import React, { useEffect, useState } from "react";
 import { useCart } from "../../CartContext/CartContext";
 import { FaFire, FaHeart, FaPlus, FaStar } from "react-icons/fa";
 import { HiMinus, HiPlus } from "react-icons/hi";
 import FloatingParticle from "../FloatingParticle/FloatingParticle";
+import axios from "axios";
 
 const SpecialOffer = () => {
   const [showAll, setShowAll] = useState(false);
-  const initialData = [...cardData, ...additionalData];
-  const { addToCart, updateQuantity, removeFromCart, cartItems } = useCart();
+  const [items, setItems] = useState([]);
+  const { addToCart, updateQuantity, removeFromCart, cartItems, API_BASE } = useCart();
+
+  const buildImageUrl = (path) => {
+    if (!path) return "/fallback.png";
+    return path.startsWith("http") ? path : `${API_BASE}/uploads/${String(path).replace(/^\/?uploads\//, "")}`;
+  };
+
+  useEffect(() => {
+    axios
+      .get(`${API_BASE}/api/items`, { withCredentials: true })
+      .then((res) => setItems(Array.isArray(res.data) ? res.data : res.data?.items ?? []))
+      .catch((err) => console.error(err));
+  }, [API_BASE]);
+
+  const displayList = Array.isArray(items) ? items.slice(0, showAll ? 8 : 4) : [];
 
   return (
     <div className="bg-gradient-to-b from-[#1a1212] to-[#2a1e1e] text-white py-16 px-4 font-[poppins]">
@@ -28,60 +36,49 @@ const SpecialOffer = () => {
           </p>
         </div>
 
-        {/* product cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-          {(showAll ? initialData : initialData.slice(0, 4)).map((item, index) => {
-            const cartItem = cartItems.find((ci) => ci.id === item.id);
-            const quantity = cartItem?.quantity || 0;
+          {displayList.map((item) => {
+            const cartItem = cartItems.find((ci) => ci.item._id === item._id);
+            const qty = cartItem?.quantity || 0;
+            const cartId = cartItem?._id;
 
             return (
-              <div
-                key={`${item.id}-${index}`}
-                className="bg-[#1f1f1f] rounded-xl overflow-hidden shadow-md hover:shadow-yellow-500/20 transition-all duration-300"
-              >
+              <div key={item._id} className="bg-[#1f1f1f] rounded-xl overflow-hidden shadow-md hover:shadow-yellow-500/20 transition-all duration-300">
                 <div className="relative h-72 overflow-hidden group">
                   <img
-                    src={item.image}
-                    alt={item.title}
+                    src={buildImageUrl(item.imageUrl || item.image)}
+                    alt={item.name}
                     className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute top-3 left-3 bg-black/60 px-2 py-1 rounded text-xs flex items-center gap-1 text-amber-400">
                     <FaStar className="text-sm" />
-                    <span className="font-semibold">{item.rating}</span>
+                    <span className="font-semibold">{item.rating ?? "4.9"}</span>
                   </div>
                   <div className="absolute top-3 right-3 bg-black/60 px-2 py-1 rounded text-xs flex items-center gap-1 text-red-400">
                     <FaHeart className="text-sm" />
-                    <span className="font-semibold">{item.hearts}</span>
+                    <span className="font-semibold">{item.hearts ?? "120"}</span>
                   </div>
                 </div>
 
                 <div className="p-6 relative z-10 space-y-3">
-                  <h3 className="text-xl font-semibold">{item.title}</h3>
+                  <h3 className="text-xl font-semibold">{item.name}</h3>
                   <p className="text-sm text-gray-400 line-clamp-2">{item.description}</p>
                   <div className="flex items-center justify-between gap-4">
-                    <span className="text-xl font-bold text-amber-400 flex-1">
-                      {item.price}
-                    </span>
+                    <span className="text-xl font-bold text-amber-400 flex-1">₹{Number(item.price || 0).toFixed(2)}</span>
 
-                    {quantity > 0 ? (
+                    {qty > 0 ? (
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() =>
-                            quantity > 1
-                              ? updateQuantity(item.id, quantity - 1)
-                              : removeFromCart(item.id)
-                          }
+                          onClick={() => (qty > 1 ? updateQuantity(cartId, qty - 1) : removeFromCart(cartId))}
                           className="w-8 h-8 rounded-full bg-amber-800/40 hover:bg-amber-700/60 text-white flex items-center justify-center transition"
                         >
                           <HiMinus />
                         </button>
 
-                        <span className="w-8 text-center text-amber-100 font-semibold">
-                          {quantity}
-                        </span>
+                        <span className="w-8 text-center text-amber-100 font-semibold">{qty}</span>
 
                         <button
-                          onClick={() => updateQuantity(item.id, quantity + 1)}
+                          onClick={() => updateQuantity(cartId, qty + 1)}
                           className="w-8 h-8 rounded-full bg-amber-800/40 hover:bg-amber-700/60 text-white flex items-center justify-center transition"
                         >
                           <HiPlus />
@@ -89,17 +86,8 @@ const SpecialOffer = () => {
                       </div>
                     ) : (
                       <button
-                        onClick={() =>
-                          addToCart(
-                            {
-                              ...item,
-                              name: item.title,
-                              price: parseFloat(item.price.replace("₹", "")),
-                            },
-                            1
-                          )
-                        }
-                        className={`${addButtonBase} ${addButtonHover} ${commonTransition} flex items-center gap-2 text-sm px-4 py-2 rounded-md bg-yellow-500 hover:bg-yellow-400 text-black font-medium`}
+                        onClick={() => addToCart(item, 1)}
+                        className="flex items-center gap-2 text-sm px-4 py-2 rounded-md bg-yellow-500 hover:bg-yellow-400 text-black font-medium transition"
                       >
                         <FaPlus />
                         <span>Add</span>
@@ -118,7 +106,6 @@ const SpecialOffer = () => {
           })}
         </div>
 
-        {/* Show More / Show Less Button */}
         <div className="mt-12 flex justify-center">
           <button
             onClick={() => setShowAll(!showAll)}

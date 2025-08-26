@@ -1,16 +1,27 @@
-import React, { useState } from 'react';
-import { useCart } from '../../CartContext/CartContext';
-import { Link } from 'react-router-dom';
+import React, { useState } from "react";
+import { useCart } from "../../CartContext/CartContext";
+import { Link } from "react-router-dom";
 import { FaMinus, FaPlus, FaTimes, FaTrash } from "react-icons/fa";
 
 const CartPage = () => {
-  const { cartItems, removeFromCart, updateQuantity, cartTotal } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, totalAmount, API_BASE } =
+    useCart();
   const [selectedImage, setSelectedImage] = useState(null);
 
+  const buildImageUrl = (path) => {
+    if (!path) return "/fallback.png";
+    return path.startsWith("http")
+      ? path
+      : `${API_BASE}/uploads/${String(path).replace(/^\/?uploads\//, "")}`;
+  };
+
   return (
-    <div className="min-h-screen py-10 px-5 md:px-20" style={{ backgroundColor: "rgb(31,18,10)" }}>
+    <div
+      className="min-h-screen py-10 px-5 md:px-20"
+      style={{ backgroundColor: "rgb(31,18,10)" }}
+    >
       <h1 className="text-3xl md:text-4xl font-bold text-white mb-8 text-center tracking-wide">
-         Your Cart
+        Your Cart
       </h1>
 
       {cartItems.length === 0 ? (
@@ -26,18 +37,20 @@ const CartPage = () => {
       ) : (
         <>
           <div className="space-y-6">
-            {cartItems.map((item) => (
+            {cartItems.map(({ _id, item, quantity }) => (
               <div
-                key={item.id}
+                key={_id}
                 className="flex flex-col md:flex-row items-center justify-between bg-white/10 backdrop-blur-md p-5 rounded-xl shadow-lg hover:shadow-xl transition"
               >
                 {/* Image */}
                 <div
                   className="cursor-pointer w-28 h-28 flex-shrink-0 mb-4 md:mb-0"
-                  onClick={() => setSelectedImage(item.image)}
+                  onClick={() =>
+                    setSelectedImage(buildImageUrl(item.imageUrl || item.image))
+                  }
                 >
                   <img
-                    src={item.image}
+                    src={buildImageUrl(item.imageUrl || item.image)}
                     alt={item.name}
                     className="w-full h-full object-cover rounded-lg border border-amber-700"
                   />
@@ -45,26 +58,33 @@ const CartPage = () => {
 
                 {/* Item Info */}
                 <div className="flex-1 text-center md:text-left md:ml-6">
-                  <h3 className="text-lg font-semibold text-white">{item.name}</h3>
-                  <p className="text-amber-400 font-medium">₹ {item.price}</p>
+                  <h3 className="text-lg font-semibold text-white">
+                    {item.name}
+                  </h3>
+                  <p className="text-amber-400 font-medium">
+                    ₹ {Number(item.price || 0).toFixed(2)}
+                  </p>
                 </div>
 
                 {/* Quantity + Price + Remove in same line */}
                 <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 mt-3 md:mt-0">
-                  
                   {/* Quantity Controls */}
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
+                      onClick={() =>
+                        quantity > 1
+                          ? updateQuantity(_id, quantity - 1)
+                          : removeFromCart(_id)
+                      }
                       className="p-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition"
                     >
                       <FaMinus />
                     </button>
                     <span className="text-lg font-medium text-white w-6 text-center">
-                      {item.quantity}
+                      {quantity}
                     </span>
                     <button
-                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      onClick={() => updateQuantity(_id, quantity + 1)}
                       className="p-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition"
                     >
                       <FaPlus />
@@ -73,12 +93,12 @@ const CartPage = () => {
 
                   {/* Price */}
                   <p className="text-lg font-semibold text-amber-400 whitespace-nowrap">
-                    ₹ {item.price * item.quantity}
+                    ₹{Number((item.price || 0) * quantity).toFixed(2)}
                   </p>
 
                   {/* Remove Button */}
                   <button
-                    onClick={() => removeFromCart(item.id)}
+                    onClick={() => removeFromCart(_id)}
                     className="flex items-center gap-2 text-red-400 hover:text-red-500 transition"
                   >
                     <FaTrash /> <span>Remove</span>
@@ -96,13 +116,20 @@ const CartPage = () => {
             >
               Continue Shopping
             </Link>
-            <div className="text-center md:text-right mt-4 md:mt-0">
+
+            <div className="text-center md:text-right mt-6 md:mt-0 space-y-3">
               <h2 className="text-2xl font-bold text-white">
-                Total: <span className="text-amber-400">₹ {cartTotal}</span>
+                Total:{" "}
+                <span className="text-amber-400">
+                  ₹{Number(totalAmount).toFixed(2)}
+                </span>
               </h2>
-              <button className="mt-3 bg-amber-600 text-white px-6 py-2 rounded-lg hover:bg-amber-700 transition">
+              <Link
+                to="/checkout"
+                className="inline-block bg-amber-600 text-white px-6 py-2 rounded-lg shadow-md hover:bg-amber-700 hover:scale-105 transition-transform"
+              >
                 Checkout Now
-              </button>
+              </Link>
             </div>
           </div>
         </>
