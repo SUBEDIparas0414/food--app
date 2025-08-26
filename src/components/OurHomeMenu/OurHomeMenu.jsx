@@ -1,18 +1,35 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useCart } from '../../CartContext/CartContext';
-import { dummyMenuData } from '../../assets/OmhDD';
 import { FaMinus, FaPlus } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 
 const categories = ['Breakfast', 'Lunch', 'Dinner', 'Mexican', 'Italian', 'Drinks'];
 
 const OurHomeMenu = () => {
   const [activeCategory, setActiveCategory] = useState(categories[0]);
-  const displayItems = (dummyMenuData[activeCategory] || []).slice(0, 4);
+  const { cartItems, addToCart, removeFromCart, updateQuantity } = useCart();
+  const [menuData, setMenuData] = useState({});
 
-  const { cartItems, addToCart, removeFromCart } = useCart();
+  useEffect(() => {
+    axios
+      .get('http://localhost:4000/api/items')
+      .then((res) => {
+        const grouped = res.data.reduce((acc, item) => {
+          acc[item.category] = acc[item.category] || [];
+          acc[item.category].push(item);
+          return acc;
+        }, {});
+        setMenuData(grouped);
+      })
+      .catch(console.error);
+  }, []);
 
-  const getQuantity = (id) => cartItems.find((i) => i.id === id)?.quantity || 0;
+  // find cart entry by item id
+  const getCartEntry = (id) => cartItems.find((ci) => ci.item._id === id);
+  const getQuantity = (id) => getCartEntry(id)?.quantity || 0;
+
+  const displayItems = (menuData[activeCategory] || []).slice(0, 4);
 
   return (
     <div className="bg-[#1e1e1e] text-white px-4 py-16 font-[poppins]">
@@ -45,16 +62,18 @@ const OurHomeMenu = () => {
         {/* Menu Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {displayItems.map((item, i) => {
-            const quantity = getQuantity(item.id);
+            const qty = getQuantity(item._id);
+            const cartEntry = getCartEntry(item._id);
+
             return (
               <div
-                key={item.id}
+                key={item._id}
                 className="bg-[#2a2a2a] rounded-xl shadow-lg overflow-hidden flex flex-col"
                 style={{ '--index': i }}
               >
                 <div className="h-48 overflow-hidden">
                   <img
-                    src={item.image}
+                    src={item.imageUrl}
                     alt={item.name}
                     className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                   />
@@ -68,31 +87,31 @@ const OurHomeMenu = () => {
                     <span className="text-yellow-400 font-bold text-lg">Rs: {item.price}</span>
 
                     <div className="flex items-center gap-2">
-                      {quantity > 0 ? (
+                      {qty > 0 ? (
                         <>
                           <button
                             className="bg-yellow-500 hover:bg-yellow-400 text-black w-8 h-8 flex items-center justify-center rounded-full"
                             onClick={() =>
-                              quantity > 1
-                                ? addToCart(item, quantity - 1)
-                                : removeFromCart(item.id)
+                              qty > 1
+                                ? updateQuantity(cartEntry.item._id, qty - 1)
+                                : removeFromCart(cartEntry.item._id)
                             }
                           >
                             <FaMinus />
                           </button>
 
-                          <span className="px-2 text-sm">{quantity}</span>
+                          <span className="px-2 text-sm">{qty}</span>
 
                           <button
                             className="bg-yellow-500 hover:bg-yellow-400 text-black w-8 h-8 flex items-center justify-center rounded-full"
-                            onClick={() => addToCart(item, quantity + 1)}
+                            onClick={() => updateQuantity(cartEntry.item._id, qty + 1)}
                           >
                             <FaPlus />
                           </button>
                         </>
                       ) : (
                         <button
-                          onClick={() => addToCart(item,1)}
+                          onClick={() => addToCart(item, 1)}
                           className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-1 text-sm rounded-full font-medium"
                         >
                           Add To Cart

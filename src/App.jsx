@@ -8,6 +8,10 @@ import Cart from "./pages/Cart/Cart";
 import Login from "./components/Login/Login";
 import SignUP from "./components/SignUp/SignUP";
 import PrivateRoute from "./components/PrivateRoute/PrivateRoute";
+import VerifyPaymentPage from "./pages/VerifyPaymentPage/VerifyPaymentPage";
+import CheckoutPage from "./pages/CheckoutPage/CheckoutPage";
+import MyOrderPage from "./pages/MyOrderPage/MyOrderPage";
+
 
 const App = () => {
   return (
@@ -20,6 +24,8 @@ const App = () => {
 
       <Route path="/login" element={<Home />} />
       <Route path="/signup" element={<SignUP />} />
+      {/* payment verification  */}
+      <Route path="/myorder/verify" element={<VerifyPaymentPage />} />
       <Route
         path="/cart"
         element={
@@ -28,6 +34,9 @@ const App = () => {
           </PrivateRoute>
         }
       />
+
+      <Route path="/checkout" element={<PrivateRoute><CheckoutPage /></PrivateRoute>} />
+      <Route path="/myorder" element={<PrivateRoute><MyOrderPage/></PrivateRoute>} />
     </Routes>
   );
 };
